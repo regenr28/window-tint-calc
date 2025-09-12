@@ -54,11 +54,12 @@ export async function GET(request: Request) {
         headers: { "Cache-Control": "no-store" },
       })
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("Duda API Error:", err);
     return withCors(
       NextResponse.json(
-        { error: "Duda API request failed", details: err?.message || String(err) },
+        { error: "Duda API request failed", details: message },
         { status: 500 }
       )
     );
