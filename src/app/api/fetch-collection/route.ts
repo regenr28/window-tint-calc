@@ -30,20 +30,25 @@ type CollectionResponse = {
 
 /** Narrow unknown to CollectionResponse without using `any` */
 function asCollectionResponse(x: unknown): CollectionResponse {
-  // Soft runtime guard; still returns a typed object with optional props
   if (x && typeof x === "object") return x as CollectionResponse;
   return {};
 }
 
 function withCors(resp: NextResponse) {
   resp.headers.set("Access-Control-Allow-Origin", "*");
-  resp.headers.set("Access-Control-Allow-Methods", "GET,OPTIONS");
+  resp.headers.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS"); // allow POST for Duda proxy
   resp.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   return resp;
 }
 
 export async function OPTIONS() {
   return withCors(new NextResponse(null, { status: 200 }));
+}
+
+// Duda's editor may POST to its proxy, which forwards to your URL.
+// Reuse the same logic.
+export async function POST(request: Request) {
+  return GET(request);
 }
 
 // GET /api/fetch-collection?site_name=...&collection_name=...&output=...&renderName=...
@@ -102,10 +107,11 @@ export async function GET(request: Request) {
     if (output === "windowselection") {
       const renderName = searchParams.get("renderName");
 
+      // If a specific renderName is provided, return that item's WindowParts
       if (renderName) {
         const match = items.find((v) => (v?.data?.RenderName ?? "") === renderName);
         const parts = Array.isArray(match?.data?.WindowParts) ? match?.data?.WindowParts : [];
-        // 200 with [] keeps the dropdown happy even if not found
+        // Return 200 with [] even if not found (keeps dropdown happy)
         return withCors(
           NextResponse.json(
             { multi_select_options: parts },
@@ -114,6 +120,7 @@ export async function GET(request: Request) {
         );
       }
 
+      // Otherwise, fall back to the field's declared multi_select_options
       const field = fields.find((f) => f?.name === "WindowParts" && f?.type === "multi_select");
       if (!field || !Array.isArray(field.multi_select_options)) {
         return withCors(
